@@ -1,0 +1,64 @@
+name: "Tower Build"
+
+# handy-tower: the only workflow that can start on this branch (TOWER.md, "CI").
+# It never runs on push or PR: start it by hand, or push a tower-v* tag.
+# Unsigned builds for the two clients, uploaded as workflow artifacts:
+#   - macOS Apple silicon (.dmg)
+#   - Windows x64 (NSIS .exe and .msi)
+# It reuses upstream's reusable build.yml (workflow_call only, so it never
+# triggers by itself) with signing off, and src-tauri/tauri.tower.conf.json
+# merged over tauri.conf.json (fork identifier, no updater artifacts, no
+# Azure signCommand). No secrets are needed.
+#
+# Billing: private-repo minutes are multiplied (macOS x10, Windows x2). Use
+# the `targets` input to build only the platform you need.
+
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: "Which builds to run"
+        type: choice
+        default: both
+        options:
+          - both
+          - macos
+          - windows
+  push:
+    tags:
+      - "tower-v*"
+
+concurrency:
+  group: tower-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    if: ${{ github.event_name == 'push' || inputs.targets != 'windows' }}
+    # build.yml's job asks for contents: write (it can attach to releases);
+    # a called workflow can't get more than its caller grants. Nothing here
+    # creates a release.
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build.yml
+    with:
+      # macOS 26 like upstream: the Apple Intelligence bridge needs its SDK.
+      platform: "macos-26"
+      target: "aarch64-apple-darwin"
+      build-args: "--target aarch64-apple-darwin --config src-tauri/tauri.tower.conf.json"
+      sign-binaries: false
+      asset-prefix: "handy-tower"
+      upload-artifacts: true
+
+  windows:
+    if: ${{ github.event_name == 'push' || inputs.targets != 'macos' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build.yml
+    with:
+      platform: "windows-latest"
+      target: "x86_64-pc-windows-msvc"
+      build-args: "--config src-tauri/tauri.tower.conf.json"
+      sign-binaries: false
+      asset-prefix: "handy-tower"
+      upload-artifacts: true
