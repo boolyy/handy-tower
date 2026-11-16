@@ -1,0 +1,29 @@
+/* handy-tower: the tower pill reuses RecordingOverlay.css's card and row, and
+   sizes itself to its label (the native window is OVERLAY_TOWER_WIDTH wide). */
+.scard.compact.ctower {
+  width: max-content;
+  min-width: var(--ov-work-w);
+  max-width: calc(100vw - 2px);
+}
+.scard.ctower .sbase {
+  column-gap: 10px;
+}
+.scard.ctower .swork-label {
+  font-size: 12px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scard.ctower .stimer {
+  opacity: 1;
+}
+/* Held: a two-bar pause glyph in the notice colour. */
+.tower-pause {
+  width: 8px;
+  height: 10px;
+  flex: none;
+  border-left: 3px solid var(--color-warning);
+  border-right: 3px solid var(--color-warning);
+  box-sizing: border-box;
+}

@@ -1,6 +1,14 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Cog, FlaskConical, History, Info, Sparkles, Cpu } from "lucide-react";
+import {
+  Cog,
+  FlaskConical,
+  History,
+  Info,
+  Sparkles,
+  Cpu,
+  RadioTower,
+} from "lucide-react";
 import HandyTextLogo from "./icons/HandyTextLogo";
 import HandyHand from "./icons/HandyHand";
 import { useSettings } from "../hooks/useSettings";
@@ -12,6 +20,8 @@ import {
   PostProcessingSettings,
   ModelsSettings,
 } from "./settings";
+import { TowerSettings } from "./tower/TowerSettings";
+import { useTowerMode } from "@/stores/towerStore";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
@@ -32,6 +42,13 @@ interface SectionConfig {
 }
 
 export const SECTIONS_CONFIG = {
+  // handy-tower: backend choice, tower connection and hotkeys.
+  tower: {
+    labelKey: "sidebar.tower",
+    icon: RadioTower,
+    component: TowerSettings,
+    enabled: () => true,
+  },
   general: {
     labelKey: "sidebar.general",
     icon: HandyHand,
@@ -42,7 +59,8 @@ export const SECTIONS_CONFIG = {
     labelKey: "sidebar.history",
     icon: History,
     component: HistorySettings,
-    enabled: () => true,
+    // handy-tower: no transcript history is kept (TOWER.md, "Privacy").
+    enabled: () => false,
   },
   models: {
     labelKey: "sidebar.models",
@@ -76,6 +94,9 @@ export const SECTIONS_CONFIG = {
   },
 } as const satisfies Record<string, SectionConfig>;
 
+// handy-tower: sections that only configure local transcription.
+const LOCAL_ONLY_SECTIONS: string[] = ["general", "models", "postprocessing"];
+
 interface SidebarProps {
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
@@ -87,9 +108,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { t } = useTranslation();
   const { settings } = useSettings();
+  const towerMode = useTowerMode();
 
   const availableSections = Object.entries(SECTIONS_CONFIG)
-    .filter(([_, config]) => config.enabled(settings))
+    .filter(
+      ([id, config]) =>
+        config.enabled(settings) &&
+        !(towerMode && LOCAL_ONLY_SECTIONS.includes(id)),
+    )
     .map(([id, config]) => ({ id: id as SidebarSection, ...config }));
 
   return (

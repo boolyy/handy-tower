@@ -27,7 +27,12 @@ import {
 } from "./components/onboarding/onboardingStore";
 import { DebugSettings, ModelsSettings } from "./components/settings";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { FileDropOverlay } from "./components/FileDropOverlay";
+import { TowerSetup } from "./components/tower/TowerSetup";
+import {
+  isTowerMode,
+  startTowerStatusListener,
+  useTowerStore,
+} from "./stores/towerStore";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { WhatsNewGate } from "./components/whats-new";
 import { useSettings } from "./hooks/useSettings";
@@ -40,6 +45,7 @@ import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 // flow is first-run onboarding; the rest are single screens for returning users.
 type OnboardingStep =
   | "flow"
+  | "tower"
   | "permissions"
   | "migration"
   | "replaceModel"
@@ -82,8 +88,7 @@ function App() {
   // Set when a returning user's selected model is a retired (ONNX) model that
   // is still on disk: they must update it before the app can transcribe.
   const [migrationModelId, setMigrationModelId] = useState<string | null>(null);
-  const [currentSection, setCurrentSection] =
-    useState<SidebarSection>("general");
+  const [currentSection, setCurrentSection] = useState<SidebarSection>("tower");
   const showHistory = useCallback(() => setCurrentSection("history"), []);
   const { settings, updateSetting } = useSettings();
   const direction = getLanguageDirection(i18n.language);
@@ -119,8 +124,11 @@ function App() {
       ]).catch((e) => {
         console.warn("Failed to initialize:", e);
       });
-      refreshAudioDevices();
-      refreshOutputDevices();
+      // handy-tower: the tower backend never touches local audio devices.
+      if (!isTowerMode()) {
+        refreshAudioDevices();
+        refreshOutputDevices();
+      }
     }
   }, [onboardingStep, refreshAudioDevices, refreshOutputDevices]);
 
@@ -182,6 +190,24 @@ function App() {
         settingsResult.status === "ok" &&
         settingsResult.data.onboarding_completed === true;
       const currentPlatform = platform();
+
+      // handy-tower: the tower backend has its own short setup (no model, no
+      // microphone); it shows until there's a token and, on macOS, the
+      // Accessibility grant that pasting needs.
+      startTowerStatusListener();
+      const tower = await useTowerStore.getState().load();
+      if (tower.backend === "tower") {
+        const accessibility =
+          currentPlatform !== "macos" ||
+          (await checkAccessibilityPermission().catch(() => false));
+        if (hasCompletedOnboarding && tower.has_token && accessibility) {
+          setOnboardingStep("done");
+        } else {
+          await revealMainWindowForPermissions();
+          setOnboardingStep("tower");
+        }
+        return;
+      }
 
       if (hasCompletedOnboarding) {
         // Returning user - check if they need to grant permissions first
@@ -292,6 +318,13 @@ function App() {
         </button>
       </>
     );
+  } else if (onboardingStep === "tower") {
+    content = (
+      <TowerSetup
+        onComplete={() => setOnboardingStep("done")}
+        onUseLocal={() => setOnboardingStep("flow")}
+      />
+    );
   } else if (onboardingStep === "flow") {
     content = <OnboardingFlow onComplete={() => setOnboardingStep("done")} />;
   } else if (onboardingStep === "permissions") {
@@ -351,7 +384,7 @@ function App() {
         </div>
         {/* Fixed footer at bottom */}
         <Footer onShowHistory={showHistory} />
-        <FileDropOverlay onDropped={showHistory} />
+        {/* handy-tower: no file drop; its results would land in History. */}
       </div>
     );
   }

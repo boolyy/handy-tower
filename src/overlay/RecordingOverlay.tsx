@@ -15,6 +15,7 @@ import i18n, { syncLanguageFromSettings } from "@/i18n";
 import { noticeDisplay } from "@/lib/notices";
 import type { ModelStateEvent } from "@/lib/types/events";
 import { getLanguageDirection } from "@/lib/utils/rtl";
+import { TowerCard, useTowerOverlay } from "./TowerOverlay";
 
 type OverlayState =
   | "recording"
@@ -22,7 +23,9 @@ type OverlayState =
   | "transcribing"
   | "processing"
   | "notice"
-  | "live_notice";
+  | "live_notice"
+  // handy-tower: the tower backend's session and messages (TowerOverlay.tsx).
+  | "tower";
 
 const isNoticeState = (state: OverlayState) =>
   state === "notice" || state === "live_notice";
@@ -91,6 +94,7 @@ const RecordingOverlay: React.FC = () => {
   const capRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const direction = getLanguageDirection(i18n.language);
+  const tower = useTowerOverlay();
 
   useEffect(() => {
     const setupEventListeners = async () => {
@@ -264,6 +268,18 @@ const RecordingOverlay: React.FC = () => {
   }, [noticeTitle, isVisible]);
 
   if (!isVisible && !shownNotice) return null;
+
+  if (state === "tower") {
+    return (
+      <TowerCard
+        payload={tower.payload}
+        receivedAt={tower.receivedAt}
+        isVisible={isVisible}
+        position={position}
+        direction={direction}
+      />
+    );
+  }
 
   // Re-pin when the user is within ~a line of the bottom; unpin otherwise.
   const handleStreamScroll = () => {
