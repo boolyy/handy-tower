@@ -219,6 +219,10 @@ unsafe fn process_integrity_level(
 /// Centralized cancellation function that can be called from anywhere in the app.
 /// Handles cancelling both recording and transcription operations and updates UI state.
 pub fn cancel_current_operation(app: &AppHandle) {
+    // handy-tower: in tower mode, cancel means POST /record/cancel.
+    if crate::tower::cancel(app) {
+        return;
+    }
     info!("Initiating operation cancellation...");
 
     // Unregister the cancel shortcut asynchronously

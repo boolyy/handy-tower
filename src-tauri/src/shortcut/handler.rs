@@ -32,6 +32,11 @@ pub fn handle_shortcut_event(
     hotkey_string: &str,
     is_pressed: bool,
 ) {
+    // handy-tower: tower bindings, and Esc while the tower backend is active.
+    if crate::tower::handle_shortcut(app, binding_id, is_pressed) {
+        return;
+    }
+
     let settings = get_settings(app);
 
     // Transcribe bindings are handled by the coordinator.

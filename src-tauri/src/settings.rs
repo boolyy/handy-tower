@@ -1007,6 +1007,33 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: "escape".to_string(),
         },
     );
+    // handy-tower: the tower backend's hotkeys (registered only in tower mode).
+    // No modifiers: Deskflow swaps alt/super on the Mac screen (TOWER.md).
+    for (id, name, description, key) in [
+        (
+            "tower_dictate",
+            "Dictate (tower)",
+            "Records on the tower mic and pastes the cleaned-up text.",
+            "f14",
+        ),
+        (
+            "tower_raw",
+            "Dictate raw (tower)",
+            "Records on the tower mic and pastes the text without cleanup.",
+            "f15",
+        ),
+    ] {
+        bindings.insert(
+            id.to_string(),
+            ShortcutBinding {
+                id: id.to_string(),
+                name: name.to_string(),
+                description: description.to_string(),
+                default_binding: key.to_string(),
+                current_binding: key.to_string(),
+            },
+        );
+    }
 
     AppSettings {
         settings_schema_version: default_settings_schema_version(),
@@ -1472,8 +1499,12 @@ fn self_update_possible() -> bool {
 pub fn update_checks_forced_disabled() -> bool {
     use std::sync::OnceLock;
     static IS_UPDATER_DISABLED: OnceLock<bool> = OnceLock::new();
-    *IS_UPDATER_DISABLED
-        .get_or_init(|| utils::env_flag_enabled("HANDY_DISABLE_UPDATER") || !self_update_possible())
+    *IS_UPDATER_DISABLED.get_or_init(|| {
+        // handy-tower: always off; upstream's updater would install stock Handy.
+        crate::tower::updater_disabled()
+            || utils::env_flag_enabled("HANDY_DISABLE_UPDATER")
+            || !self_update_possible()
+    })
 }
 
 /// Effective updater state: the user's stored preference, overridden to `false`

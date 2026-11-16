@@ -21,6 +21,9 @@ pub fn init_shortcuts(app: &AppHandle) {
         if id == "cancel" {
             continue; // Skip cancel shortcut, it will be registered dynamically
         }
+        if !crate::tower::binding_enabled(&id) {
+            continue; // handy-tower: local vs tower bindings
+        }
         // Skip post-processing shortcut when the feature is disabled
         if id == "transcribe_with_post_process" && !user_settings.post_process_enabled {
             continue;

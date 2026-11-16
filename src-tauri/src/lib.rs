@@ -28,6 +28,7 @@ mod settings;
 mod shortcut;
 mod signal_handle;
 mod system_languages;
+mod tower;
 mod transcription_coordinator;
 mod transcription_hook;
 mod tray;
@@ -199,6 +200,9 @@ fn should_force_show_permissions_window(app: &AppHandle) -> bool {
 }
 
 fn initialize_core_logic(app_handle: &AppHandle) {
+    // handy-tower: read the dictation backend before any manager can open the mic.
+    tower::prepare(app_handle);
+
     // Note: Enigo (keyboard/mouse simulation) is NOT initialized here.
     // The frontend is responsible for calling the `initialize_enigo` command
     // after onboarding completes. This avoids triggering permission dialogs
@@ -401,6 +405,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     // Create the recording overlay window (hidden by default)
     utils::create_recording_overlay(app_handle);
+
+    // handy-tower: connect to the tower service (tower backend only).
+    tower::start(app_handle);
 }
 
 #[tauri::command]
@@ -822,6 +829,10 @@ pub fn run(cli_args: CliArgs) {
             notices::get_active_notices,
             notices::dismiss_notice,
             notices::dismiss_overlay_notice,
+            tower::get_tower_settings,
+            tower::set_tower_connection,
+            tower::set_tower_backend,
+            tower::tower_check_connection,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

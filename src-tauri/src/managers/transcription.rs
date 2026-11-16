@@ -530,6 +530,12 @@ impl TranscriptionManager {
         model_id: &str,
         device_index: Option<usize>,
     ) -> Result<()> {
+        // handy-tower: the tower transcribes; never load a local model.
+        if crate::tower::is_active() {
+            return Err(anyhow::anyhow!(
+                "The tower backend is active; local models are not loaded"
+            ));
+        }
         let load_start = std::time::Instant::now();
         debug!("Starting to load model: {}", model_id);
 

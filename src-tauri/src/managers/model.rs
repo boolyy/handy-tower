@@ -2262,6 +2262,12 @@ impl ModelManager {
     }
 
     pub async fn download_model(&self, model_id: &str) -> Result<()> {
+        // handy-tower: nothing to download while the tower transcribes.
+        if crate::tower::is_active() {
+            return Err(anyhow::anyhow!(
+                "The tower backend is active; local models are not downloaded"
+            ));
+        }
         let model_info = {
             let models = self.available_models.lock().unwrap();
             models.get(model_id).cloned()

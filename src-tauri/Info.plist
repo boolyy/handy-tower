@@ -4,5 +4,7 @@
 <dict>
   <key>NSMicrophoneUsageDescription</key>
   <string>Request microphone access to transcribe audio locally</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Handy connects to the dictation service on your local network.</string>
 </dict>
 </plist>

@@ -33,6 +33,8 @@ use crate::tray;
 
 /// Initialize shortcuts using the configured implementation
 pub fn init_shortcuts(app: &AppHandle) {
+    // handy-tower: the tower backend always uses the tauri implementation.
+    crate::tower::enforce_keyboard_implementation(app);
     let user_settings = settings::load_or_create_app_settings(app);
 
     // Check which implementation to use
@@ -314,6 +316,9 @@ pub fn resume_all_shortcuts(app: &AppHandle) {
         if id == "transcribe_with_post_process" && !settings.post_process_enabled {
             continue;
         }
+        if !crate::tower::binding_enabled(id) {
+            continue; // handy-tower: local vs tower bindings
+        }
         if let Err(e) = register_shortcut(app, binding.clone()) {
             debug!("resume_all_shortcuts: could not register '{}': {}", id, e);
         }
@@ -359,6 +364,8 @@ pub fn change_keyboard_implementation_setting(
     app: AppHandle,
     implementation: String,
 ) -> Result<ImplementationChangeResult, String> {
+    // handy-tower: the tower backend needs RegisterHotKey/Carbon.
+    crate::tower::check_keyboard_implementation(&implementation)?;
     let current_settings = settings::get_settings(&app);
     let current_impl = current_settings.keyboard_implementation;
     let new_impl = parse_keyboard_implementation(&implementation);
@@ -509,6 +516,9 @@ fn register_all_shortcuts_for_implementation(
         // Skip post-processing shortcut when the feature is disabled
         if id == "transcribe_with_post_process" && !current_settings.post_process_enabled {
             continue;
+        }
+        if !crate::tower::binding_enabled(id) {
+            continue; // handy-tower: local vs tower bindings
         }
 
         let mut binding = current_settings

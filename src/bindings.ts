@@ -1066,6 +1066,39 @@ async dismissNotice(source: NoticeSource, code: NoticeCode) : Promise<void> {
  */
 async dismissOverlayNotice() : Promise<void> {
     await TAURI_INVOKE("dismiss_overlay_notice");
+},
+async getTowerSettings() : Promise<TowerSettingsView> {
+    return await TAURI_INVOKE("get_tower_settings");
+},
+/**
+ * Saves the URL and, when given, the token (`""` clears it), then reconnects.
+ */
+async setTowerConnection(url: string, token: string | null) : Promise<Result<TowerSettingsView, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_tower_connection", { url, token }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setTowerBackend(backend: TowerBackend) : Promise<Result<TowerSettingsView, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_tower_backend", { backend }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * `GET /health` with the saved settings, for the settings screen.
+ */
+async towerCheckConnection() : Promise<Result<TowerHealth, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("tower_check_connection") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -1523,6 +1556,31 @@ export type StreamWorkKind = "transcribing" | "polishing"
  * and `Dark` force one of the two palettes Handy already ships.
  */
 export type Theme = "system" | "light" | "dark"
+/**
+ * Where dictation audio is captured and transcribed.
+ */
+export type TowerBackend = 
+/**
+ * Stock Handy: local microphone and local models.
+ */
+"local" | 
+/**
+ * The tower service owns the mic and the session; this app only sends
+ * hotkey intents and pastes the returned text.
+ */
+"tower"
+/**
+ * `/health`, flattened for the settings screen.
+ */
+export type TowerHealth = { ok: boolean; asr_loaded: boolean; mic_present: boolean; llm_reachable: boolean }
+/**
+ * What the frontend sees. The token itself never leaves the backend.
+ */
+export type TowerSettingsView = { backend: TowerBackend; url: string; has_token: boolean; default_url: string; 
+/**
+ * Whether the `/events` stream is currently connected.
+ */
+connected: boolean }
 export type TranscribeAcceleratorSetting = "auto" | "cpu" | "gpu"
 /**
  * Emitted when a dictation finishes (not on cancel); onboarding uses it to measure speed.
