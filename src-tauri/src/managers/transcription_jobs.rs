@@ -118,6 +118,11 @@ impl TranscriptionJobManager {
     /// Decodes `path` into a recording, then adds it to History and queues
     /// it. The recording exists first, so no entry is ever without audio.
     pub fn transcribe_file(&self, path: PathBuf) -> Result<HistoryEntry> {
+        // handy-tower: file transcription lands in History, which this build
+        // doesn't keep (and it would write a WAV copy to disk).
+        if crate::tower::persistence_disabled() {
+            return Err(anyhow!("File transcription is disabled in this build"));
+        }
         // A malformed file may panic the decoder.
         let samples = catch_unwind(AssertUnwindSafe(|| decode_audio_file(&path))).unwrap_or_else(
             |payload| {

@@ -14,12 +14,9 @@ pub use crate::tray::*;
 
 /// Preserve diagnostic text in development builds, but redact it in releases.
 /// Do not use for secrets such as API keys, which must always be redacted.
-pub fn redact_text(text: &str) -> &str {
-    if cfg!(debug_assertions) {
-        text
-    } else {
-        "[REDACTED]"
-    }
+pub fn redact_text(_text: &str) -> &str {
+    // handy-tower: transcripts are never logged, debug builds included.
+    "[REDACTED]"
 }
 
 /// Main window's opening and minimum page size, in logical pixels.

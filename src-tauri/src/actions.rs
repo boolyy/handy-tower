@@ -772,15 +772,11 @@ impl ShortcutAction for TranscribeAction {
                     tm.cancel_stream();
                     finish_without_text(&ah, input_silent, 0, stop_time);
                 } else {
-                    // Save WAV concurrently with transcription
                     let sample_count = samples.len();
                     let file_name = format!("handy-{}.wav", chrono::Utc::now().timestamp());
-                    let wav_path = hm.recordings_dir().join(&file_name);
-                    let wav_path_for_verify = wav_path.clone();
-                    let samples_for_wav = samples.clone();
-                    let wav_handle = tauri::async_runtime::spawn_blocking(move || {
-                        crate::audio_toolkit::save_wav_file(&wav_path, &samples_for_wav)
-                    });
+                    // handy-tower: recordings are never written to disk, so no
+                    // history entry is saved either (TOWER.md, "Privacy").
+                    let wav_saved = false;
 
                     // Transcribe concurrently with WAV save: the live decode's
                     // result when it has one (all audio was already fed to it),
@@ -788,30 +784,6 @@ impl ShortcutAction for TranscribeAction {
                     // as an error, so it never starts a batch run.
                     let transcription_time = Instant::now();
                     let transcription_result = tm.transcribe_recording(samples);
-
-                    // Await WAV save and verify
-                    let wav_saved = match wav_handle.await {
-                        Ok(Ok(())) => {
-                            match crate::audio_toolkit::verify_wav_file(
-                                &wav_path_for_verify,
-                                sample_count,
-                            ) {
-                                Ok(()) => true,
-                                Err(e) => {
-                                    error!("WAV verification failed: {}", e);
-                                    false
-                                }
-                            }
-                        }
-                        Ok(Err(e)) => {
-                            error!("Failed to save WAV file: {}", e);
-                            false
-                        }
-                        Err(e) => {
-                            error!("WAV save task panicked: {}", e);
-                            false
-                        }
-                    };
 
                     if rm.was_cancelled_since(cancel_generation) {
                         debug!("Transcription operation cancelled before output handling");

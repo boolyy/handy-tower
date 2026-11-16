@@ -105,7 +105,8 @@ impl HistoryManager {
         let db_path = app_data_dir.join("history.db");
 
         // Ensure recordings directory exists
-        if !recordings_dir.exists() {
+        // handy-tower: no persistence; neither the directory nor history.db.
+        if !crate::tower::persistence_disabled() && !recordings_dir.exists() {
             fs::create_dir_all(&recordings_dir)?;
             debug!("Created recordings directory: {:?}", recordings_dir);
         }
@@ -117,7 +118,9 @@ impl HistoryManager {
         };
 
         // Initialize database and run migrations synchronously
-        manager.init_database()?;
+        if !crate::tower::persistence_disabled() {
+            manager.init_database()?;
+        }
 
         Ok(manager)
     }
@@ -252,6 +255,13 @@ impl HistoryManager {
     }
 
     fn get_connection(&self) -> Result<Connection> {
+        // handy-tower: an empty throwaway database, so every reader finds
+        // nothing and nothing reaches the disk.
+        if crate::tower::persistence_disabled() {
+            let mut conn = Connection::open_in_memory()?;
+            Self::apply_migrations(&mut conn)?;
+            return Ok(conn);
+        }
         Ok(Connection::open(&self.db_path)?)
     }
 
@@ -275,6 +285,7 @@ impl HistoryManager {
         })
     }
 
+    #[allow(dead_code)] // handy-tower: recordings are never saved
     pub fn recordings_dir(&self) -> &std::path::Path {
         &self.recordings_dir
     }
@@ -334,6 +345,10 @@ impl HistoryManager {
     /// Insert `entry`, filling in its id and title, and announce it.
     fn insert_entry(&self, mut entry: HistoryEntry) -> Result<HistoryEntry> {
         entry.title = self.format_timestamp_title(entry.timestamp);
+        // handy-tower: never store (or announce) a transcript.
+        if crate::tower::persistence_disabled() {
+            return Ok(entry);
+        }
 
         let conn = self.get_connection()?;
         conn.execute(
@@ -389,6 +404,9 @@ impl HistoryManager {
         post_process_prompt: Option<String>,
         language: Option<LanguageDecision>,
     ) -> Result<HistoryEntry> {
+        if crate::tower::persistence_disabled() {
+            return Err(anyhow!("History is disabled in this build"));
+        }
         let (language, language_source) = split_language(language);
         let conn = self.get_connection()?;
         let updated = conn.execute(
