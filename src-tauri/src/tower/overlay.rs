@@ -5,6 +5,7 @@
 use super::client::TowerMessage;
 use super::events::{ServerState, ServerView};
 use serde::Serialize;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
@@ -65,21 +66,47 @@ pub fn decide(view: &ServerView, message: Option<TowerMessage>, now: Instant) ->
     })
 }
 
+/// Order of `apply` calls, and the newest one that reached the window.
+static DECIDED: AtomicU64 = AtomicU64::new(0);
+static APPLIED: AtomicU64 = AtomicU64::new(0);
+
+/// Whether update `seq` may still touch the window: `false` once a newer
+/// update has (it would undo that one).
+fn claim(applied: &AtomicU64, seq: u64) -> bool {
+    applied.fetch_max(seq, Ordering::SeqCst) < seq
+}
+
 /// Shows or hides the overlay. `shown` tracks whether the tower put it up, so
 /// an idle server never hides an overlay that belongs to something else.
+///
+/// Both run on the main thread, in the order decided. Upstream's show hops to
+/// the main thread while its hide runs on the caller's: a hide decided just
+/// after a show (the stop result, then the stream's `idle` a few ms later) ran
+/// first, the late show then cancelled the hide's delayed `window.hide()`, and
+/// the "finishing" spinner stayed up after the text was pasted.
 pub fn apply(app: &AppHandle, payload: Option<Payload>, shown: &mut bool) {
-    match payload {
-        Some(p) => {
-            let _ = app.emit_to("recording_overlay", "tower-overlay", &p);
-            crate::overlay::show_overlay_state(app, "tower");
-            *shown = true;
+    let hide = match payload {
+        Some(_) => false,
+        None if *shown => true,
+        None => return,
+    };
+    *shown = !hide;
+    let seq = DECIDED.fetch_add(1, Ordering::SeqCst) + 1;
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if !claim(&APPLIED, seq) {
+            log::debug!("Skipping a stale tower overlay update");
+            return;
         }
-        None if *shown => {
-            crate::overlay::hide_recording_overlay(app);
-            *shown = false;
+        match payload {
+            Some(p) => {
+                let _ = handle.emit_to("recording_overlay", "tower-overlay", &p);
+                // Already on the main thread, so this shows inline.
+                crate::overlay::show_overlay_state(&handle, "tower");
+            }
+            None => crate::overlay::hide_recording_overlay(&handle),
         }
-        None => {}
-    }
+    });
 }
 
 #[cfg(test)]
@@ -103,6 +130,19 @@ mod tests {
         v.connected = true;
         v.apply(s);
         v
+    }
+
+    #[test]
+    fn a_stale_update_never_overrides_a_newer_one() {
+        let applied = AtomicU64::new(0);
+        // In order: each one applies.
+        assert!(claim(&applied, 1));
+        assert!(claim(&applied, 2));
+        // Show #3 is overtaken by hide #4: the late show must not run.
+        assert!(claim(&applied, 4));
+        assert!(!claim(&applied, 3));
+        assert!(!claim(&applied, 4), "an update applies once");
+        assert!(claim(&applied, 5));
     }
 
     #[test]

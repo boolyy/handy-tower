@@ -86,6 +86,9 @@ const RecordingOverlay: React.FC = () => {
   const [noticeWidth, setNoticeWidth] = useState<number>();
   const noticeProbeRef = useRef<HTMLSpanElement>(null);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  // handy-tower: bumped by every show and hide, so a show still awaiting
+  // settings can't make the overlay visible after a newer hide.
+  const visibilitySeqRef = useRef(0);
 
   const smoothedLevelsRef = useRef<number[]>(Array(16).fill(0));
   // Live-text scroll-back: the text region "sticks" to the newest line while the
@@ -105,6 +108,7 @@ const RecordingOverlay: React.FC = () => {
 
       const unlistenShow = await listen("show-overlay", async (event) => {
         const overlayState = event.payload as OverlayState;
+        const seq = ++visibilitySeqRef.current;
         clearTimeout(fadeTimerRef.current);
         if (!isNoticeState(overlayState)) setNotice(null);
         // Reset synchronously before settings I/O. A fast microphone can emit
@@ -130,6 +134,8 @@ const RecordingOverlay: React.FC = () => {
         } catch {
           // Keep the previous/default placement if settings can't be read.
         }
+        // A hide (or a newer show) arrived during the awaits above.
+        if (visibilitySeqRef.current !== seq) return;
         setState(overlayState);
         if (overlayState === "streaming") {
           setPhase("listening");
@@ -142,6 +148,7 @@ const RecordingOverlay: React.FC = () => {
       });
 
       const unlistenHide = await listen("hide-overlay", () => {
+        visibilitySeqRef.current++;
         setIsVisible(false);
         setCaptureReady(false);
         // A notice keeps rendering while it fades. Dropping the transcript here
