@@ -254,9 +254,8 @@ artifact zip drops its executable bit).
 
 ## CI
 
-GitHub Actions is disabled on `boolyy/handy-tower` on purpose. To build, enable
-Actions in the repository settings; on this branch only `tower-build.yml` can
-start a run:
+`boolyy/handy-tower` is public, so builds on GitHub-hosted runners cost no
+minutes. On this branch only `tower-build.yml` can start a run:
 
 - **Triggers**: `workflow_dispatch` (choose `both`, `macos` or `windows`) and
   tags `tower-v*`. Nothing runs on push or pull requests.
@@ -267,8 +266,8 @@ start a run:
   `--config src-tauri/tauri.tower.conf.json`, which sets the fork's identifier,
   turns off updater artifacts (they need a signing key) and removes the Azure
   `signCommand`. Upstream's Windows package audit still runs.
-- **Minutes**: private-repo minutes are multiplied (macOS ×10, Windows ×2) and
-  a release build with LTO takes a while; build one platform when that's enough.
+- **Time**: a release build with LTO takes about 15 minutes per platform; build
+  one platform when that's enough.
   The Rust cache helps later runs.
 
 Deleted on this branch so a push triggers nothing (re-delete them if a rebase
